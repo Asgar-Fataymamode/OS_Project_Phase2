@@ -1,0 +1,44 @@
+# Compiled binaries
+myshell
+*.o
+*.exe
+
+# Test files
+test_*.txt
+temp_*.txt
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux system files
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Build directories
+build/
+bin/
+obj/
+
+# Backup files
+*.bak
+*.backup
+
+# Core dumps
+core
+vgcore.*
+
+# Temporary files
+*.tmp
+*.temp
