@@ -1,6 +1,4 @@
 # Makefile for MyShell Project
-# Author: Mahmoud Kassem (Person A)
-# Course: Operating Systems - Fall 2025
 
 # Compiler and flags
 CC = gcc
