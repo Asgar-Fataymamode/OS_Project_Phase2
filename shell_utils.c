@@ -529,6 +529,98 @@ int count_pipes(const char* input) {
 }
 
 
+// char** split_by_pipes(char* input, int* num_segments) {
+//     // trim once to inspect structure
+//     char* trimmed_input = trim_whitespace(input);
+//     size_t len = strlen(trimmed_input);
+
+//     // pipe at beginning
+//     if (len > 0 && trimmed_input[0] == '|') {
+//         fprintf(stderr, "Error: Missing command before pipe\n");
+//         return NULL;
+//     }
+//     // pipe at end
+//     if (len > 0 && trimmed_input[len - 1] == '|') {
+//         fprintf(stderr, "Error: Command missing after pipe\n");
+//         return NULL;
+//     }
+
+//     // detect empty command between pipes
+//     {
+//         const char *p = trimmed_input;
+//         int after_pipe = 0;
+//         while (*p) {
+//             if (*p == '|') {
+//                 if (after_pipe) {
+//                     fprintf(stderr, "Error: Empty command between pipes\n");
+//                     return NULL;
+//                 }
+//                 after_pipe = 1;
+//             } else if (*p != ' ' && *p != '\t') {
+//                 after_pipe = 0;
+//             }
+//             ++p;
+//         }
+//     }
+
+//     // upper bound capacity
+//     int capacity = count_pipes(trimmed_input) + 1;
+//     if (capacity < 2) {
+//         fprintf(stderr, "Error: Invalid pipeline\n");
+//         return NULL;
+//     }
+
+//     char** segments = malloc(capacity * sizeof(char*));
+//     if (!segments) {
+//         handle_error(ERROR_MALLOC_FAILED, "split_by_pipes");
+//         return NULL;
+//     }
+
+//     // work on a modifiable copy for strtok_r
+//     char* input_copy = malloc((strlen(trimmed_input) + 1) * sizeof(char));
+//     if (!input_copy) {
+//         free(segments);
+//         handle_error(ERROR_MALLOC_FAILED, "input copy in split_by_pipes");
+//         return NULL;
+//     }
+//     strcpy(input_copy, trimmed_input);
+
+//     // tokenize by '|'
+//     int i = 0;
+//     char *saveptr = NULL;
+//     char *token = strtok_r(input_copy, "|", &saveptr);
+
+//     while (token != NULL) {
+//         char* t = trim_whitespace(token);
+
+//         if (*t == '\0') {
+//             fprintf(stderr, "Error: Empty command between pipes\n");
+//             for (int j = 0; j < i; j++) free(segments[j]);
+//             free(segments);
+//             free(input_copy);
+//             return NULL;
+//         }
+
+//         segments[i] = malloc((strlen(t) + 1) * sizeof(char));
+//         if (!segments[i]) {
+//             for (int j = 0; j < i; j++) free(segments[j]);
+//             free(segments);
+//             free(input_copy);
+//             handle_error(ERROR_MALLOC_FAILED, "segment in split_by_pipes");
+//             return NULL;
+//         }
+//         strcpy(segments[i], t);
+//         i++;
+
+//         token = strtok_r(NULL, "|", &saveptr);
+//     }
+
+//     *num_segments = i;
+
+//     free(input_copy);
+//     return segments;
+// }
+
 char** split_by_pipes(char* input, int* num_segments) {
     // trim once to inspect structure
     char* trimmed_input = trim_whitespace(input);
@@ -576,7 +668,7 @@ char** split_by_pipes(char* input, int* num_segments) {
         return NULL;
     }
 
-    // work on a modifiable copy for strtok_r
+    // work on a modifiable copy for strtok
     char* input_copy = malloc((strlen(trimmed_input) + 1) * sizeof(char));
     if (!input_copy) {
         free(segments);
@@ -587,8 +679,7 @@ char** split_by_pipes(char* input, int* num_segments) {
 
     // tokenize by '|'
     int i = 0;
-    char *saveptr = NULL;
-    char *token = strtok_r(input_copy, "|", &saveptr);
+    char *token = strtok(input_copy, "|");
 
     while (token != NULL) {
         char* t = trim_whitespace(token);
@@ -612,7 +703,7 @@ char** split_by_pipes(char* input, int* num_segments) {
         strcpy(segments[i], t);
         i++;
 
-        token = strtok_r(NULL, "|", &saveptr);
+        token = strtok(NULL, "|");
     }
 
     *num_segments = i;
@@ -620,8 +711,6 @@ char** split_by_pipes(char* input, int* num_segments) {
     free(input_copy);
     return segments;
 }
-
-
 
 
 
