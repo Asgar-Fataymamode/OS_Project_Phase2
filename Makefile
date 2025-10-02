@@ -1,54 +1,56 @@
-# Makefile for MyShell Project
+# this is the Makefile for MyShell Project
 
-# Compiler and flags
+# compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -g -pedantic
 LDFLAGS = 
 
-# Target executable
+# for the target executable
 TARGET = myshell
 
-# Source files
+# source files
 SOURCES = myshell.c shell_utils.c
 HEADERS = shell_utils.h
 
-# Object files (automatically generated from source files)
+# object files -- automatically generated from source files
 OBJECTS = $(SOURCES:.c=.o)
 
-# Default target - build the executable
+# default target -- build the executable
+# gets built when running make
 all: $(TARGET)
 
-# Build the main executable
+# build the main executable
+# links all the object files together into the final program
 $(TARGET): $(OBJECTS)
 	@echo "Linking $(TARGET)..."
 	$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
 	@echo "Build successful!"
 
-# Compile source files to object files
+# compile source files to object files
 %.o: %.c $(HEADERS)
 	@echo "Compiling $<..."
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Clean up generated files
+# clean up generated files
 clean:
 	@echo "Cleaning up..."
 	rm -f $(OBJECTS) $(TARGET)
-	rm -f *.txt *.log  # Clean up test files
+	rm -f *.txt *.log
 	@echo "Clean complete!"
 
-# Rebuild everything from scratch
+# rebuild everything from scratch
 rebuild: clean all
 
-# Install (copy to a system directory) - optional
+# Install to make myshell available system-wide
 install: $(TARGET)
 	cp $(TARGET) /usr/local/bin/$(TARGET)
 	chmod +x /usr/local/bin/$(TARGET)
 
-# Uninstall - optional
+# uninstall to remove myshell from the system directory
 uninstall:
 	rm -f /usr/local/bin/$(TARGET)
 
-# Run basic tests
+# run basic tests
 test: $(TARGET)
 	@echo "Running basic tests..."
 	@echo "Test 1: Simple command (ls)"
@@ -65,20 +67,20 @@ test: $(TARGET)
 	./$(TARGET) <<< "exit"
 	@echo "Basic tests completed!"
 
-# Debug build with extra debugging symbols
+# debug build with extra debugging symbols
 debug: CFLAGS += -DDEBUG -O0
 debug: $(TARGET)
 
-# Release build with optimizations
+# release build with optimizations
 release: CFLAGS += -O2 -DNDEBUG
 release: clean $(TARGET)
 
-# Check for memory leaks using valgrind (if available)
+# check for memory leaks
 memcheck: $(TARGET)
 	@echo "Running memory leak check..."
 	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET) <<< "exit"
 
-# Display help information
+# help information
 help:
 	@echo "Available targets:"
 	@echo "  all       - Build the myshell executable (default)"
@@ -92,8 +94,8 @@ help:
 	@echo "  uninstall - Remove from system directory"
 	@echo "  help      - Show this help message"
 
-# Declare phony targets (targets that don't create files)
+# declare phony targets -- i.e don't create files
 .PHONY: all clean rebuild install uninstall test debug release memcheck help
 
-# Prevent make from deleting intermediate files
+# to prevent make from deleting intermediate files
 .PRECIOUS: %.o
