@@ -1,4 +1,5 @@
 // this file --> contains all the utility functions for parsing input, executing commands, handling redirections, and managing memory
+#define _POSIX_C_SOURCE 200809L
 
 #include "shell_utils.h"
 
