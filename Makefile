@@ -54,17 +54,17 @@ uninstall:
 test: $(TARGET)
 	@echo "Running basic tests..."
 	@echo "Test 1: Simple command (ls)"
-	./$(TARGET) <<< "ls"
+	@echo "ls" | ./$(TARGET)
 	@echo ""
 	@echo "Test 2: Command with arguments (ls -l)"
-	./$(TARGET) <<< "ls -l"
+	@echo "ls -l" | ./$(TARGET)
 	@echo ""
 	@echo "Test 3: Output redirection"
-	./$(TARGET) <<< "echo 'Hello World' > test_output.txt"
+	@echo "echo 'Hello World' > test_output.txt" | ./$(TARGET)
 	@cat test_output.txt 2>/dev/null || echo "Output redirection test failed"
 	@echo ""
 	@echo "Test 4: Exit command"
-	./$(TARGET) <<< "exit"
+	@echo "exit" | ./$(TARGET)
 	@echo "Basic tests completed!"
 
 # debug build with extra debugging symbols
@@ -78,7 +78,7 @@ release: clean $(TARGET)
 # check for memory leaks
 memcheck: $(TARGET)
 	@echo "Running memory leak check..."
-	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET) <<< "exit"
+	@echo "exit" | valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
 
 # help information
 help:

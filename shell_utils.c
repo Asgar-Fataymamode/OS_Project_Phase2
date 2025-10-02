@@ -406,7 +406,18 @@ int execute_simple_command(command_t* cmd) {
         
         // replace child process with the command to run
         if (execvp(cmd->argv[0], cmd->argv) == -1) {
-            handle_error(ERROR_EXEC_FAILED, cmd->argv[0]);
+            // handle_error(ERROR_EXEC_FAILED, cmd->argv[0]);
+            // exit(EXIT_FAILURE);
+            // Check errno to provide more specific error messages
+            if (errno == ENOENT) {
+                fprintf(stderr, "Error: Command not found: '%s'\n", cmd->argv[0]);
+            } 
+            else if (errno == EACCES) {
+                fprintf(stderr, "Error: Permission denied: '%s'\n", cmd->argv[0]);
+            } 
+            else {
+                handle_error(ERROR_EXEC_FAILED, cmd->argv[0]);
+            }
             exit(EXIT_FAILURE);
         }
     }
@@ -516,81 +527,106 @@ int count_pipes(const char* input) {
     return count;
 }
 
-// splits input string by pipe characters into separate command strings
-// tokenizes input using '|' as delimiter
-// each token --> a separate command string that will be parsed later
+
 char** split_by_pipes(char* input, int* num_segments) {
+    // trim once to inspect structure
+    char* trimmed_input = trim_whitespace(input);
+    size_t len = strlen(trimmed_input);
 
-    // n pipes --> n+1 segments
-    int pipe_count = count_pipes(input);
-    *num_segments = pipe_count + 1;
-
-    // check if input ends with a pipe (missing command after pipe)
-    char* trimmed_check = trim_whitespace(input);
-    if (strlen(trimmed_check) > 0 && trimmed_check[strlen(trimmed_check) - 1] == '|') {
+    // pipe at beginning
+    if (len > 0 && trimmed_input[0] == '|') {
+        fprintf(stderr, "Error: Missing command before pipe\n");
+        return NULL;
+    }
+    // pipe at end
+    if (len > 0 && trimmed_input[len - 1] == '|') {
         fprintf(stderr, "Error: Command missing after pipe\n");
         return NULL;
     }
-    
-    // allocate array for command segments
-    char** segments = malloc((*num_segments) * sizeof(char*));
-    if (segments == NULL) {
+
+    // detect empty command between pipes
+    {
+        const char *p = trimmed_input;
+        int after_pipe = 0;
+        while (*p) {
+            if (*p == '|') {
+                if (after_pipe) {
+                    fprintf(stderr, "Error: Empty command between pipes\n");
+                    return NULL;
+                }
+                after_pipe = 1;
+            } else if (*p != ' ' && *p != '\t') {
+                after_pipe = 0;
+            }
+            ++p;
+        }
+    }
+
+    // upper bound capacity
+    int capacity = count_pipes(trimmed_input) + 1;
+    if (capacity < 2) {
+        fprintf(stderr, "Error: Invalid pipeline\n");
+        return NULL;
+    }
+
+    char** segments = malloc(capacity * sizeof(char*));
+    if (!segments) {
         handle_error(ERROR_MALLOC_FAILED, "split_by_pipes");
         return NULL;
     }
-    
-    // make a working copy of input
-    char* input_copy = malloc((strlen(input) + 1) * sizeof(char));
-    if (input_copy == NULL) {
+
+    // work on a modifiable copy for strtok_r
+    char* input_copy = malloc((strlen(trimmed_input) + 1) * sizeof(char));
+    if (!input_copy) {
         free(segments);
         handle_error(ERROR_MALLOC_FAILED, "input copy in split_by_pipes");
         return NULL;
     }
-    strcpy(input_copy, input);
+    strcpy(input_copy, trimmed_input);
 
-    // split by pipe character
-    char* token;
-    char* saveptr;
+    // tokenize by '|'
     int i = 0;
-    
-    token = strtok_r(input_copy, "|", &saveptr);
-    while (token != NULL && i < *num_segments) {
-        // trim whitespace from each segment
-        token = trim_whitespace(token);
+    char *saveptr = NULL;
+    char *token = strtok_r(input_copy, "|", &saveptr);
 
-        // check for empty command between pipes
-        if (strlen(token) == 0) {
+    while (token != NULL) {
+        char* t = trim_whitespace(token);
+
+        if (*t == '\0') {
             fprintf(stderr, "Error: Empty command between pipes\n");
-            // clean up: free all previously allocated segments
-            for (int j = 0; j < i; j++) {
-                free(segments[j]);
-            }
+            for (int j = 0; j < i; j++) free(segments[j]);
             free(segments);
             free(input_copy);
             return NULL;
         }
-        
-        // allocate memory and copy segment string
-        segments[i] = malloc((strlen(token) + 1) * sizeof(char));
-        if (segments[i] == NULL) {
-            // clean up on allocation failure
-            for (int j = 0; j < i; j++) {
-                free(segments[j]);
-            }
+
+        segments[i] = malloc((strlen(t) + 1) * sizeof(char));
+        if (!segments[i]) {
+            for (int j = 0; j < i; j++) free(segments[j]);
             free(segments);
             free(input_copy);
             handle_error(ERROR_MALLOC_FAILED, "segment in split_by_pipes");
             return NULL;
         }
-        strcpy(segments[i], token);
-        
+        strcpy(segments[i], t);
         i++;
+
         token = strtok_r(NULL, "|", &saveptr);
     }
-    
+
+    *num_segments = i;
+
     free(input_copy);
     return segments;
 }
+
+
+
+
+
+
+
+
 
 // parses input containing pipes and creates a pipeline structure
 // main parsing function --> handles both simple and complex commands
@@ -705,26 +741,22 @@ pipeline_t* parse_pipeline(char* input) {
         
         // middle commands -- validate redirection rules
         if (i > 0 && i < num_segments - 1) {
-            // middle commands can have error redirection 
-            if (pipeline->commands[i]->has_error_redir) {
-                if (pipeline->error_file == NULL) {
-                    pipeline->error_file = pipeline->commands[i]->error_file;
-                    pipeline->commands[i]->error_file = NULL;
-                    pipeline->commands[i]->has_error_redir = 0;
-                }
-            }
-            
-             // however CANNOT have input or output redirection
-            if (pipeline->commands[i]->has_input_redir || pipeline->commands[i]->has_output_redir) {
+                if (pipeline->commands[i]->has_input_redir || pipeline->commands[i]->has_output_redir) {
                 fprintf(stderr, "Error: Middle command in pipeline cannot have input/output redirections\n");
-                free_pipeline(pipeline);
-                for (int j = 0; j < num_segments; j++) {
-                    free(segments[j]);
+
+                // free only initialized commands 0..i
+                for (int k = 0; k <= i; k++) {
+                    free_command(pipeline->commands[k]);
                 }
+                free(pipeline->commands);
+                free(pipeline);
+
+                for (int j = 0; j < num_segments; j++) free(segments[j]);
                 free(segments);
                 return NULL;
             }
         }
+
 
     }
     
@@ -909,6 +941,22 @@ int execute_pipeline(pipeline_t* pipeline) {
                     }
                     close(fd);
                 }
+            }
+
+            // handle per command stderr redirection
+            if (pipeline->commands[i]->has_error_redir && pipeline->commands[i]->error_file) {
+                int efd = open(pipeline->commands[i]->error_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+                if (efd == -1) {
+                    handle_error(ERROR_PERMISSION_DENIED, pipeline->commands[i]->error_file);
+                    exit(EXIT_FAILURE);
+                }
+                if (dup2(efd, STDERR_FILENO) == -1) {
+                    handle_error(ERROR_DUP2_FAILED, "per-command error redirection");
+                    close(efd);
+                    exit(EXIT_FAILURE);
+                }
+                close(efd);
             }
             
             // close all pipe file descriptors in child
