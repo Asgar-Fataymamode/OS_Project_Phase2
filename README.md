@@ -1,187 +1,106 @@
-# MyShell - Custom Remote Shell
+# MyShell — Minimal Unix-Like Shell (Operating System Project - Phase 1)
 
-A custom shell implementation in C that simulates various OS services like processes, threads, and scheduling. This is Phase 1 of a multi-phase project for Operating Systems course.
+A small shell written in C. It reads user input, parses commands and redirections, and executes them via POSIX system calls. Phase 1 delivers an interactive shell with single-command execution, I/O redirection, and pipelines.
 
-## 🎯 Project Overview
+## Features
 
-MyShell is a basic shell application that can parse command-line input from users and execute commands by creating child processes. The main goal is to become familiar with Linux system calls like `fork()`, `exec()`, `wait()`, `dup2()`, and `pipe()`.
+* **Core execution**
 
-## ✨ Features Implemented (Phase 1)
+  * Executes programs with or without arguments using `fork()`, `execvp()`, and `wait()`
+  * PATH search via `execvp`
+  * Clean handling of `exit` and EOF (Ctrl-D)
 
-### Core Shell Functionality
-- ✅ Interactive shell with `$` prompt
-- ✅ Command execution using `fork()`, `execvp()`, and `wait()`
-- ✅ Support for commands with and without arguments
-- ✅ Exit command and EOF (Ctrl+D) handling
+* **Redirection**
 
-### I/O Redirection
-- ✅ **Input Redirection (`<`)** - Redirect standard input from file
-- ✅ **Output Redirection (`>`)** - Redirect standard output to file  
-- ✅ **Error Redirection (`2>`)** - Redirect standard error to file
-- ✅ **Combined Redirections** - Support multiple redirections in one command
+  * Input redirection: `< file`
+  * Output redirection: `> file`
+  * Error redirection: `2> file`
+  * Combined forms supported (e.g., `cat < in.txt > out.txt`)
 
-### Error Handling
-- ✅ Comprehensive error messages for various failure scenarios
-- ✅ File access validation
-- ✅ Invalid command handling
-- ✅ Memory management with proper cleanup
+* **Pipelines**
 
-## 🚀 Getting Started
+  * Command pipelines with `|` (e.g., `cmd1 | cmd2 | cmd3`)
+  * Validation rules enforced:
 
-### Prerequisites
-- GCC compiler with C99 standard support
-- Linux/Unix-based operating system
-- Make utility
+    * The **first** command may use `<`
+    * The **last** command may use `>` and/or `2>`
+    * **Middle** commands cannot use `<` or `>`
 
-### Compilation
+* **Error handling**
+
+  * Clear messages for missing files, permission errors, bad commands, failed `fork/exec/dup2/pipe`, and malformed pipelines
+  * Defensive parsing and cleanup to avoid memory leaks
+
+## Build and Run
+
+**Compile**
+
 ```bash
-# Clean and build
 make clean
 make
-
-# Or rebuild everything
-make rebuild
-
-# Debug build
-make debug
-
-# Release build  
-make release
 ```
 
-### Usage
+**Run**
+
 ```bash
-# Start the shell
 ./myshell
-
-# Example commands
-$ ls                              # List directory contents
-$ ls -l                          # List with details
-$ echo "Hello World" > output.txt # Output redirection
-$ cat < input.txt                # Input redirection
-$ ls invalid_dir 2> error.log    # Error redirection
-$ cat < input.txt > output.txt   # Combined redirection
-$ exit                           # Exit the shell
 ```
 
-### Testing
+## Usage Examples
+
 ```bash
-# Run automated test suite
-make test
-
-# Run comprehensive feature tests
-./test_person_a_features.sh
-
-# Check for memory leaks (requires valgrind)
-make memcheck
+# inside myshell
+$ ls
+$ ls -l
+$ echo "hello" > out.txt
+$ cat < out.txt
+$ ls nosuchfile 2> err.log
+$ printf "a\nb\nc\n" | wc -l
+$ printf "mixed\nCase\n" | tr a-z A-Z > upper.txt
+$ cat < input.txt | tr a-z A-Z > output.txt
+$ exit
 ```
 
-## 📁 Project Structure
+## Project Structure
 
-```
 myshell/
-├── myshell.c                    # Main shell program
-├── shell_utils.h                # Header with function prototypes
-├── shell_utils.c                # Utility functions implementation
-├── Makefile                     # Build system
-├── test_person_a_features.sh    # Automated test suite
-├── README.md                    # This file
-├── .gitignore                   # Git ignore rules
-└── docs/                        # Documentation
-    ├── PERSON_A_IMPLEMENTATION_LOG.md
-    ├── REPORT_PERSON_A_SECTIONS.md
-    └── PERSON_A_COMPLETION_SUMMARY.md
-```
+├── Makefile           # Build rules and convenience targets (clean, debug, release, memcheck)
+├── myshell.c          # Main REPL: prompt → read → parse → execute → cleanup
+├── shell_utils.h      # Shared types, constants, and function prototypes
+├── shell_utils.c      # Parsing, execution, redirection, error handling, memory management
+├── hello.c            # Simple C program (e.g., for testing compilation)
+└── tests/              # Test data files for redirection and pipelines
+    ├── testfile1.txt
+    └── testfile2.txt
 
-## 🛠️ Implementation Details
 
-### System Calls Used
-- `fork()` - Create child processes for command execution
-- `execvp()` - Execute commands with PATH search
-- `wait()` - Parent waits for child process completion
-- `dup2()` - File descriptor redirection for I/O
-- `open()`, `close()` - File operations for redirections
-- `access()` - File existence and permission checking
 
-### Key Data Structures
-```c
-typedef struct {
-    char** argv;           // Command and arguments
-    int argc;              // Number of arguments
-    char* input_file;      // Input redirection file
-    char* output_file;     // Output redirection file
-    char* error_file;      // Error redirection file
-    int has_input_redir;   // Input redirection flag
-    int has_output_redir;  // Output redirection flag
-    int has_error_redir;   // Error redirection flag
-} command_t;
-```
+## Division of Tasks
 
-## 📋 Upcoming Features (Phase 2+)
+### Person A — Mahmoud Kassem
 
-- 🔄 **Pipes (`|`)** - Connect commands with pipes
-- 🔗 **Compound Commands** - Complex combinations of pipes and redirections
-- 🧵 **Threading Support** - Multi-threaded command execution
-- ⚡ **Scheduling** - Process scheduling algorithms
+* **Makefile**: Build system and convenience targets (`all`, `clean`, `rebuild`, `debug`, `release`, `memcheck`, `test`).
+* **myshell.c**: Implemented the REPL (prompt display, input reading, EOF/`exit` handling), parser/executor, and per-iteration cleanup.
+* **shell_utils.c**:
 
-## 👥 Contributors
+  * Implemented **command execution** via `execute_simple_command()` using `fork()`, `execvp()`, and `wait()`.
+  * Implemented **I/O redirection** via `setup_redirection()` (`<`, `>`, `2>`) using `open()` and `dup2()`.
+  * Implemented **single-command parsing**: `parse_command_line()` (detects `<`, `>`, `2>`, extracts filenames, isolates argv) and `parse_input()` (tokenization into `argv`).
+  * Implemented **error handling** and utilities: `handle_error()`, `validate_file_access()`, `free_argv()`, `free_command()`.
+  * Added **exec error reporting** using `errno` (user-friendly messages for `ENOENT`, `EACCES`).
 
-- **Mahmoud Kassem** - Person A (Core shell functionality, I/O redirection, error handling)
-- **Asgar Fataymamode** - Person B (Pipe implementation, compound commands)
+### Person B — Asgar Fataymamode
 
-## 🎓 Academic Context
+* **shell_utils.h**: Defined constants and shared types (`command_t`, `pipeline_t`, `error_type_t`), declared function prototypes used across modules.
 
-**Course:** Operating Systems - Fall 2025  
-**Institution:** [University Name]  
-**Phase:** 1 of 4  
-**Due Date:** October 2nd, 2025  
+* **shell_utils.c**:
 
-## 📊 Grading Criteria Coverage
+  * Implemented **pipeline support**: `count_pipes()`, **robust** `split_by_pipes()` (detects leading/trailing pipes and empty segments), and `parse_pipeline()` (builds `pipeline_t`, relocates first/last redirections to pipeline level, enforces middle-stage rules).
+  * Implemented **pipeline execution**: `execute_pipeline()` (creates `pipe()` chains, sets up `dup2()` for each stage, closes FDs correctly in parent/children, aggregates exit status with `waitpid()`), plus **per-command `2>` redirection inside pipelines**.
+* **myshell.c**: Integrated the pipeline path into the REPL (route all input through `parse_pipeline()` and `execute_pipeline()`), minor fixes for prompt/cleanup flow.
+* **shell_utils.h**: Added `pipeline_t` structure and prototypes for pipeline parsing/execution functions.
 
-- ✅ Successful compilation with Makefile (1 pt)
-- ✅ Single Commands (with/without arguments) (3 pts)
-- ✅ Input, output, and error redirection (3 pts)
-- 🔄 Pipes (5 pts) - *Phase 2*
-- 🔄 Composed Compound Commands (10 pts) - *Phase 2*
-- ✅ Error Handling (3 pts)
-- ✅ Detailed & Meaningful Comments (2 pts)
-- ✅ Code modularity, quality, efficiency (1.5 pts)
-- ✅ Report (1.5 pts)
+## Contributors
 
-## 🧪 Testing Results
-
-All implemented features pass comprehensive testing:
-
-```
-✅ Compilation successful
-✅ Basic commands work
-✅ Commands with arguments work  
-✅ Output redirection works
-✅ Input redirection works
-✅ Error redirection works
-✅ Combined redirections work
-✅ Error handling works
-✅ Memory management - no leaks
-✅ Edge cases handled
-```
-
-## 📝 License
-
-This project is developed for educational purposes as part of an Operating Systems course.
-
-## 🤝 Contributing
-
-This is an academic project. Contributions are limited to the assigned team members:
-- Issues and suggestions are welcome
-- Please follow the existing code style and commenting standards
-- All contributions must maintain academic integrity
-
-## 📞 Contact
-
-For questions about this implementation:
-- **Mahmoud Kassem** - [Contact Information]
-- **Asgar Fataymamode** - [Contact Information]
-
----
-
-**Status: Phase 1 Complete ✅ | Ready for Phase 2 Integration 🚀**
+* Mahmoud Kassem
+* Asgar Fataymamode
