@@ -1016,7 +1016,7 @@ char** parse_input(char* input) {
         if (has_wildcard) {
             // perform glob expansion
             glob_t glob_result;
-            int glob_ret = glob(arg_buffer, GLOB_NOCHECK | GLOB_TILDE, NULL, &glob_result);
+            int glob_ret = glob(arg_buffer, GLOB_NOCHECK, NULL, &glob_result);
             
             if (glob_ret == 0) {
                 // add all matched files as separate arguments
