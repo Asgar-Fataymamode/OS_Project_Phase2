@@ -112,4 +112,10 @@ int count_pipes(const char* input);
 // splits input string by pipe characters
 char** split_by_pipes(char* input, int* num_segments);
 
+// checks if a command is a built-in and executes it
+int is_builtin_command(command_t* cmd);
+
+// executes built-in echo command
+int builtin_echo(command_t* cmd);
+
 #endif /* SHELL_UTILS_H */
