@@ -1,44 +1,32 @@
-# Compiled binaries
+# Executables
 myshell
+server
+client
+
+# Object files
 *.o
-*.exe
 
-# Test files
-test_*.txt
-temp_*.txt
+# LaTeX files (working in Google Docs)
+*.tex
+*.pdf
+
+# LaTeX build artifacts
+*.aux
 *.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.blg
+*.bbl
 
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Output files from testing
+output
 
-# macOS system files
+# macOS
 .DS_Store
-.AppleDouble
-.LSOverride
 
-# Linux system files
+# Editor backups
 *~
-.fuse_hidden*
-.directory
-.Trash-*
-
-# Build directories
-build/
-bin/
-obj/
-
-# Backup files
-*.bak
-*.backup
-
-# Core dumps
-core
-vgcore.*
-
-# Temporary files
-*.tmp
-*.temp
+*.swp

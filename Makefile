@@ -147,11 +147,10 @@ SHELL_OBJECTS = $(SHELL_SOURCES:.c=.o)
 SERVER_OBJECTS = $(SERVER_SOURCES:.c=.o)
 CLIENT_OBJECTS = $(CLIENT_SOURCES:.c=.o)
 
-# Build everything by default (shell, server, and client when available)
-all: $(TARGET_SHELL) $(TARGET_SERVER)
+# Build everything by default (shell, server, and client)
+all: $(TARGET_SHELL) $(TARGET_SERVER) $(TARGET_CLIENT)
 
-# Note: client target is not included in 'all' yet since Person B had not implemented it
-# Person B will add $(TARGET_CLIENT) to the 'all' target once client.c is ready
+# Note: All three executables are now built by default (Phase 1 shell, Phase 2 server, Phase 2 client)
 
 # build targets
 # Build the original Phase 1 myshell

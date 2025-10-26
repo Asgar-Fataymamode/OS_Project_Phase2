@@ -1,635 +1,359 @@
-# **File 5: `README.md`** (Project Overview and Quick Start)
+# Phase 2: Remote Shell via Socket Communication
 
-```markdown
-# Remote Shell - Phase 2
-**Operating Systems Lab Project**  
-**NYU Abu Dhabi**
+## Overview
 
----
+This project extends the Phase 1 command-line shell to support remote access through TCP socket communication. A client program connects to a server, which executes commands using the Phase 1 shell implementation and returns results to the client.
 
-## Table of Contents
-1. [Project Overview](#project-overview)
-2. [Phase 2 Architecture](#phase-2-architecture)
-3. [Features](#features)
-4. [File Structure](#file-structure)
-5. [Quick Start](#quick-start)
-6. [Compilation](#compilation)
-7. [Usage](#usage)
-8. [Protocol Specification](#protocol-specification)
-9. [Team Division](#team-division)
-10. [Testing](#testing)
-11. [Troubleshooting](#troubleshooting)
-12. [Known Limitations](#known-limitations)
-13. [Future Enhancements](#future-enhancements)
+## System Architecture
 
----
+The system consists of three main components:
 
-## Project Overview
-
-This project implements a **remote shell system** using TCP socket communication, extending the Phase 1 local shell into a distributed client-server architecture. Users can connect to the server remotely and execute shell commands as if they were on the local machine.
-
-### What This Does
-- **Server**: Listens for client connections on port 8080
-- **Client**: Connects to server, provides shell prompt, sends commands
-- **Execution**: Server executes commands using Phase 1 shell engine
-- **Response**: Server captures output and sends it back to client
-- **Display**: Client displays output exactly like a local shell
-
-### Key Technologies
-- **Language**: C (C99 standard)
-- **Networking**: TCP sockets (IPv4)
-- **IPC**: Pipes for output capture
-- **Process Management**: fork(), exec(), wait()
-- **Phase 1 Integration**: Complete reuse of shell parsing and execution
-
----
-
-## Phase 2 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     REMOTE SHELL SYSTEM                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│    LOCAL MACHINE                          REMOTE SERVER          │
-│    ┌─────────────┐                       ┌─────────────┐        │
-│    │   CLIENT    │                       │   SERVER    │        │
-│    │  (PersonB)  │                       │  (PersonA)  │        │
-│    │             │    TCP Connection     │             │        │
-│    │  ┌───────┐  │◄─────(Port 8080)────►│  ┌───────┐  │        │
-│    │  │ User  │  │                       │  │Socket │  │        │
-│    │  │  I/O  │  │   1. Send Command     │  │Handler│  │        │
-│    │  └───┬───┘  │  ─────────────────►   │  └───┬───┘  │        │
-│    │      │      │                       │      │      │        │
-│    │      │      │   2. Execute via      │      ▼      │        │
-│    │  ┌───▼───┐  │      Phase 1          │  ┌────────┐ │        │
-│    │  │Display│  │                       │  │ Phase1 │ │        │
-│    │  │Output │  │◄─ 3. Return Output ── │  │ Shell  │ │        │
-│    │  └───────┘  │                       │  │ Engine │ │        │
-│    │      ▲      │                       │  └────────┘ │        │
-│    │      │      │                       │      │      │        │
-│    │  $ ls -l    │                       │  Captures   │        │
-│    │  total 12   │                       │  stdout/    │        │
-│    │  -rw-r--... │                       │  stderr     │        │
-│    └─────────────┘                       └─────────────┘        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-
-Flow:
-1. User types command in client → Client sends to server
-2. Server receives → Executes using Phase 1 code → Captures output
-3. Server sends output back → Client displays to user
-```
-
----
-
-## Features
-
-### Phase 1 Features (Fully Preserved)
-✅ Simple commands (`ls`, `pwd`, `echo`)  
-✅ Commands with arguments (`ls -l`, `ps aux`)  
-✅ Input redirection (`sort < input.txt`)  
-✅ Output redirection (`ls > output.txt`)  
-✅ Error redirection (`command 2> error.log`)  
-✅ Pipes (`ls | grep txt`)  
-✅ Multiple pipes (`cmd1 | cmd2 | cmd3`)  
-✅ Compound commands (`cmd < in.txt | cmd2 > out.txt`)  
-✅ Built-in commands (`echo` with `-e` flag)  
-✅ Error handling (invalid commands, missing files)  
-
-### Phase 2 Features (New)
-✅ Remote command execution via TCP sockets  
-✅ Client-server architecture  
-✅ Output capture and transmission  
-✅ Server-side logging with formatted display  
-✅ Protocol for reliable communication  
-✅ Graceful connection handling  
-✅ Support for arbitrary output sizes (dynamic buffering)  
-✅ Clean disconnection on `exit`  
-
----
-
-## File Structure
-
-```
-project/
-│
-├── Phase 1 Files (Reused)
-│   ├── myshell.c              # Original local shell (standalone)
-│   ├── shell_utils.c          # Shell parsing & execution engine
-│   └── shell_utils.h          # Shell data structures & prototypes
-│
-├── Phase 2 Files (New)
-│   ├── server.c               # Server implementation (Person A)
-│   ├── client.c               # Client implementation (Person B)
-│   ├── PROTOCOL.md            # Communication protocol documentation
-│   └── REPORT_PERSON_A.md     # Person A's report sections
-│
-├── Build System
-│   └── Makefile               # Updated for Phase 2 targets
-│
-└── Documentation
-    └── README.md              # This file
-```
-
-### File Descriptions
-
-| File | Lines | Purpose | Owner |
-|------|-------|---------|-------|
-| `server.c` | ~580 | Server socket management, command execution, output capture | Person A |
-| `client.c` | ~300 | Client socket connection, user I/O, command transmission | Person B |
-| `shell_utils.c` | ~800 | Phase 1 parsing and execution logic | Phase 1 (reused) |
-| `shell_utils.h` | ~90 | Phase 1 data structures and prototypes | Phase 1 (reused) |
-| `myshell.c` | ~70 | Phase 1 local shell main function | Phase 1 (kept for reference) |
-| `Makefile` | ~120 | Build system for all targets | Both |
-| `PROTOCOL.md` | ~500 | Protocol specification for Person B | Person A |
-
----
-
-## Quick Start
-
-### Prerequisites
-- Linux environment (Ubuntu, Debian, etc.)
-- gcc compiler
-- make utility
-- Network access (localhost testing)
-
-### 5-Minute Setup
-
-```bash
-# 1. Clone or extract project files
-cd /path/to/project
-
-# 2. Compile server
-make server
-
-# 3. Start server (Terminal 1)
-./server
-
-# 4. Test with netcat (Terminal 2)
-nc localhost 8080
-
-# 5. Type commands
-ls
-pwd
-exit
-
-# Success! Server is working ✓
-```
-
-### With Client (After Person B Completes)
-
-```bash
-# Terminal 1: Start server
-./server
-
-# Terminal 2: Start client
-./client
-
-# Client will show prompt:
-$ _
-```
-
----
+1. **Client** (`client.c`): Presents a shell interface to users, sends commands to server, displays results
+2. **Server** (`server.c`): Accepts client connections, executes commands using Phase 1 shell, returns output
+3. **Shell Engine** (`shell_utils.c/h`): Phase 1 implementation handling command parsing, pipes, and redirections
 
 ## Compilation
 
-### Build Commands
+### Build All Components
 
 ```bash
-# Build everything (server + Phase 1 shell)
 make all
-
-# Build only server
-make server
-
-# Build only client (after Person B completes)
-make client
-
-# Build only Phase 1 shell
-make myshell
-
-# Clean all generated files
-make clean
-
-# Clean and rebuild
-make rebuild
 ```
 
-### Compilation Output
+This compiles:
+- `myshell`: Phase 1 local shell
+- `server`: Phase 2 server
+- `client`: Phase 2 client
 
-Successful compilation:
+### Build Individual Components
+
+```bash
+make server    # Build only server
+make client    # Build only client
+make myshell   # Build only Phase 1 shell
 ```
-$ make server
-Compiling server.c...
-Compiling shell_utils.c...
-Linking server...
-Build successful: server
+
+### Clean Build Artifacts
+
+```bash
+make clean     # Remove all object files and executables
+make rebuild   # Clean and build from scratch
 ```
 
-### Compilation Flags
+## Execution
 
-The Makefile uses these compiler flags:
-- `-Wall` - Enable all warnings
-- `-Wextra` - Enable extra warnings
-- `-std=c99` - Use C99 standard
-- `-g` - Include debugging symbols
-- `-pedantic` - Strict ISO C compliance
+### Starting the Server
 
----
+Open a terminal and run:
 
-## Usage
-
-### Server Usage
-
-#### Start Server
 ```bash
 ./server
 ```
 
-**Output:**
+Expected output:
 ```
 [INFO] Server started, waiting for client connections...
 ```
 
-Server is now listening on port 8080 for incoming connections.
+The server listens on port 8080 and waits for a client connection.
 
-#### Server Output Format
+### Starting the Client
 
-When client connects and executes commands:
-```
-[INFO] Client connected.
-[RECEIVED] Received command: "ls -l" from client.
-[EXECUTING] Executing command: "ls -l"
-[OUTPUT] Sending output to client:
-total 12
--rw-r--r-- 1 user user 1234 Feb 27 12:00 file1.txt
--rw-r--r-- 1 user user 5678 Feb 27 12:05 file2.txt
-```
+In a separate terminal, run:
 
-For errors:
-```
-[RECEIVED] Received command: "unknowncmd" from client.
-[EXECUTING] Executing command: "unknowncmd"
-[ERROR] Command not found: "unknowncmd"
-[OUTPUT] Sending error message to client:
-Error: Command not found: unknowncmd
-```
-
-#### Stop Server
-- Wait for client to send `exit`
-- Or press `Ctrl+C` to force stop
-
----
-
-### Client Usage (After Person B Completes)
-
-#### Start Client
 ```bash
 ./client
 ```
 
-**Output:**
-```
-$ _
+For remote servers:
+```bash
+./client <server_ip>           # Connect to specific IP
+./client <server_ip> <port>    # Connect to specific IP and port
 ```
 
-#### Using Client
+Examples:
+```bash
+./client                        # Connect to localhost:8080
+./client 192.168.1.100         # Connect to remote server
+./client localhost 9090        # Connect to custom port
+```
 
-The client provides a shell prompt identical to Phase 1:
+### Using the Shell
+
+Once connected, use the client like a normal shell:
 
 ```bash
+$ pwd
+/path/to/directory
 $ ls
-Makefile  myshell  server  shell_utils.c  shell_utils.h
-
-$ ls -l
-total 64
--rw-r--r-- 1 user user  2377 Oct 26 Makefile
--rwxr-xr-x 1 user user 18456 Oct 26 myshell
--rwxr-xr-x 1 user user 19872 Oct 26 server
-
-$ ps | grep bash
-1234 pts/0    00:00:00 bash
-
+file1.txt
+file2.txt
+$ ls | grep txt
+file1.txt
+file2.txt
+$ echo Hello World
+Hello World
 $ exit
 ```
 
-Client exits and disconnects from server.
+## Features
 
----
+### Phase 1 Features (Preserved)
 
-### Testing with netcat (Before Client is Ready)
+All Phase 1 functionality works through the client-server system:
 
-Netcat allows testing the server without the client:
+- Simple commands: `pwd`, `ls`, `echo`
+- Commands with arguments: `ls -l`, `ps aux`
+- Pipes: `ls | grep pattern`, `cat file | wc -l`
+- Input redirection: `cat < input.txt`
+- Output redirection: `echo text > output.txt`
+- Error redirection: `command 2> error.log`
+- Complex pipelines: `cat file | grep pattern | sort | uniq`
+- Built-in commands: `echo`
 
-```bash
-# Terminal 1: Start server
-./server
+### Phase 2 Features (New)
 
-# Terminal 2: Connect with netcat
-nc localhost 8080
-
-# Type commands directly:
-ls
-pwd
-whoami
-echo hello
-exit
-```
-
----
+- TCP socket communication between client and server
+- Remote command execution
+- Multi-line output handling
+- Connection error detection and reporting
+- Graceful exit handling
+- Server logging with formatted output
 
 ## Protocol Specification
 
-### Quick Reference
+### Communication Details
 
-| Aspect | Value |
-|--------|-------|
-| **Protocol** | TCP |
-| **Port** | 8080 |
-| **Command Format** | `<command>\n` |
-| **Response Format** | Plain text (variable length) |
-| **Buffer Size** | 4096 bytes |
-| **Exit Command** | `exit` |
+- **Protocol**: TCP (connection-oriented)
+- **Port**: 8080 (default)
+- **Buffer Size**: 4096 bytes
+- **Message Format**: Plain text with newline termination
 
 ### Message Flow
 
-#### Normal Command
+1. Client sends command with newline: `<command>\n`
+2. Server receives, executes command, captures output
+3. Server sends complete output (may span multiple packets)
+4. Client receives and displays output
+5. Process repeats until exit command
+
+### Exit Procedure
+
+1. Client sends: `exit\n`
+2. Server acknowledges with empty response
+3. Both close connection gracefully
+
+## File Structure
+
 ```
-Client                          Server
-  |                               |
-  |--- "ls\n" -------------------→| 
-  |                               | [Execute]
-  |←-- "file1.txt\nfile2.txt\n" -|
-  |                               |
+OS_Project_Phase2/
+├── client.c                # Client implementation (Person B)
+├── server.c                # Server implementation (Person A)
+├── shell_utils.c           # Phase 1 shell logic
+├── shell_utils.h           # Phase 1 header file
+├── myshell.c               # Phase 1 local shell
+├── Makefile                # Build system
+├── protocol.md             # Communication protocol documentation
+├── GRADING_RUBRIC_REVIEW.md # Rubric compliance analysis
+└── tests/                  # Test files
+    ├── testfile1.txt
+    └── testfile2.txt
 ```
 
-#### Error Command
+## Error Handling
+
+### Client-Side Errors
+
+**Cannot Connect to Server**
 ```
-Client                          Server
-  |                               |
-  |--- "badcmd\n" ---------------→| 
-  |                               | [Error]
-  |←-- "Error: Command not..." --|
-  |                               |
+Error: Cannot connect to server at 127.0.0.1:8080
+Please ensure the server is running and the IP/port are correct.
+To start the server: ./server
 ```
+Resolution: Start the server before running client
 
-#### Exit
+**Connection Lost During Operation**
 ```
-Client                          Server
-  |                               |
-  |--- "exit\n" -----------------→| 
-  |←-- "" (empty) ----------------|
-  |                               |
-[Disconnect]              [Close connection]
+Error: Connection to server lost.
+The server may have crashed or the network connection was interrupted.
 ```
+Resolution: Restart server and reconnect client
 
-For complete protocol documentation, see `PROTOCOL.md`.
+**Invalid Port Number**
+```
+Error: Invalid port number. Using default port 8080
+```
+Resolution: Provide valid port (1-65535)
 
----
+### Server-Side Errors
 
-## Team Division
+**Port Already in Use**
+```
+Error: Bind failed: Address already in use
+```
+Resolution: Kill existing server process or use different port
 
-### Person A (Server Implementation)
-**Files:**
-- `server.c`
-- `PROTOCOL.md`
-- `REPORT_PERSON_A.md`
-- Updated `Makefile`
-
-**Responsibilities:**
-- Socket setup and management
-- Connection handling
-- Command execution with output capture
-- Phase 1 integration
-- Server-side logging
-- Protocol design and documentation
-
-**Status:** ✅ Complete
-
----
-
-### Person B (Client Implementation)
-**Files:**
-- `client.c`
-- Complete report assembly
-
-**Responsibilities:**
-- Socket connection to server
-- User interface (prompt, input)
-- Command transmission
-- Output reception and display
-- Error handling
-- Final Makefile updates
-
-**Status:** 🔄 In Progress
-
----
+**Command Not Found**
+```
+[ERROR] Command not found: "unknowncmd"
+```
+Server displays error and sends message to client
 
 ## Testing
 
-### Manual Testing (Without Client)
+### Automated Testing
 
-#### Test 1: Basic Connection
-```bash
-# Terminal 1
-./server
-
-# Terminal 2
-nc localhost 8080
-# Type: ls
-# Type: exit
-```
-
-#### Test 2: Phase 1 Features
-```bash
-nc localhost 8080
-ls -l
-ps aux | grep bash
-echo test > output.txt
-cat < output.txt
-exit
-```
-
-#### Test 3: Error Handling
-```bash
-nc localhost 8080
-unknowncmd
-invalidcommand123
-exit
-```
-
-### Automated Testing (Future)
+Run comprehensive test suite:
 
 ```bash
-# Run test suite (to be implemented)
-make test-server
+./test_client.sh
 ```
 
-### Integration Testing (With Client)
+Tests include:
+- Simple commands
+- Commands with arguments
+- Phase 1 pipes
+- Phase 1 redirections
+- Error handling
+- Edge cases
 
-```bash
-# Terminal 1: Server
-./server
+### Manual Testing
 
-# Terminal 2: Client
-./client
-# Execute various commands
-# Verify output matches expectations
-```
+1. Start server in one terminal: `./server`
+2. Start client in another: `./client`
+3. Test various commands:
+   - `pwd` - Show current directory
+   - `ls` - List files
+   - `ls | grep test` - Test pipes
+   - `cat < input` - Test input redirection
+   - `unknowncmd` - Test error handling
+   - `exit` - Test clean exit
 
----
+## Implementation Notes
+
+### Socket Functions Used
+
+**Client:**
+- `socket()`: Create TCP socket
+- `connect()`: Connect to server
+- `send()`: Send commands
+- `recv()`: Receive output
+- `close()`: Close connection
+
+**Server:**
+- `socket()`: Create TCP socket
+- `bind()`: Bind to port 8080
+- `listen()`: Listen for connections
+- `accept()`: Accept client connections
+- `send()`: Send output
+- `recv()`: Receive commands
+- `close()`: Close connections
+
+### Design Decisions
+
+1. **Single Client per Server**: Server handles one client at a time for simplicity
+2. **Blocking I/O**: Appropriate for single-user client-server model
+3. **Buffer Size**: 4096 bytes balances memory usage and large output handling
+4. **Protocol Simplicity**: Plain text communication for easy debugging and implementation
+5. **Error Verbosity**: Detailed error messages aid troubleshooting
+
+### Code Organization
+
+- **Modular Design**: Separate functions for socket management, command handling, error reporting
+- **Clear Separation**: Client and server in separate files with no shared code
+- **Reusability**: Phase 1 shell code reused without modification
+- **Maintainability**: Extensive comments and clear variable names
 
 ## Troubleshooting
 
-### Problem: "Address already in use"
+### Server Won't Start
 
-**Cause:** Server still running or port not released
+**Problem**: "Bind failed: Address already in use"
 
-**Solution:**
+**Solution**:
 ```bash
 # Find process using port 8080
 lsof -i :8080
+# Or
+netstat -an | grep 8080
 
 # Kill the process
-kill -9 <PID>
-
-# Or wait 1-2 minutes for port to be released
+kill <PID>
 ```
 
----
+### Client Can't Connect
 
-### Problem: "Connection refused"
+**Problem**: "Cannot connect to server"
 
-**Cause:** Server not running or wrong port
+**Checklist**:
+1. Is server running? Check with `ps aux | grep server`
+2. Correct IP address? Try `./client 127.0.0.1`
+3. Correct port? Default is 8080
+4. Firewall blocking? Check firewall settings
 
-**Solution:**
-```bash
-# Verify server is running
-ps aux | grep server
+### Commands Not Working
 
-# Check server is listening on 8080
-netstat -tuln | grep 8080
+**Problem**: Commands work locally but fail remotely
 
-# Restart server
-./server
+**Check**:
+1. File paths relative to server's working directory
+2. Permissions on server filesystem
+3. Commands available on server (check PATH)
+4. Server-side error messages in server output
+
+## Additional Information
+
+### Requirements
+
+- GCC compiler or compatible
+- POSIX-compliant operating system (Linux, macOS, Unix)
+- Network connectivity for remote access
+
+### Compilation Flags
+
+```
+-Wall          # Enable all warnings
+-Wextra        # Extra warnings
+-std=c99       # C99 standard
+-g             # Debug symbols
+-pedantic      # Strict standard compliance
 ```
 
----
+### Performance Considerations
 
-### Problem: Client shows garbled output
+- Buffer size optimized for typical command output
+- No unnecessary data copying
+- Efficient error checking with minimal overhead
+- Reuses buffers to avoid repeated allocation
 
-**Cause:** Protocol mismatch or buffer issues
+### Security Notes
 
-**Solution:**
-- Verify client follows `PROTOCOL.md` exactly
-- Check buffer sizes (4096 bytes)
-- Ensure proper null-termination of strings
+This is an educational implementation with no security features:
+- No authentication
+- No encryption
+- No input sanitization beyond Phase 1 shell
+- Should only be used in trusted network environments
 
----
+For production use, consider:
+- SSL/TLS encryption
+- User authentication
+- Input validation and sanitization
+- Rate limiting and access control
 
-### Problem: Server crashes on large output
+## Contact Information
 
-**Cause:** Memory allocation failure or buffer overflow
+For questions about:
+- **Client implementation**: Person B
+- **Server implementation**: Person A  
+- **Protocol specification**: See `protocol.md`
+- **Phase 1 shell**: See Phase 1 documentation
 
-**Solution:**
-- Check available memory: `free -h`
-- Verify dynamic buffer reallocation in `execute_command_with_capture()`
-- Test with: `ls -la /usr/bin`
+## Version History
 
----
+- **Phase 1**: Local command-line shell with pipes and redirections
+- **Phase 2**: Added client-server architecture with socket communication
 
-### Problem: Zombie processes accumulating
+## License
 
-**Cause:** Server not calling `waitpid()` for child processes
+Academic project for Operating Systems course. All rights reserved.
 
-**Solution:**
-```bash
-# Check for zombies
-ps aux | grep defunct
-
-# Server should call waitpid() - verify in code
-# Restart server if zombies present
-```
-
----
-
-## Known Limitations
-
-### Current Limitations
-
-1. **Single Client Only**
-   - Server handles one client at a time
-   - Additional clients must wait for current client to disconnect
-   - *Future:* Add multi-threading for concurrent clients
-
-2. **No Authentication**
-   - No username/password required
-   - Anyone who can connect can execute commands
-   - *Future:* Add authentication mechanism
-
-3. **Localhost Only (Default)**
-   - Server binds to all interfaces but typically used on localhost
-   - No encryption (plain text transmission)
-   - *Future:* Add TLS/SSL for secure remote connections
-
-4. **Limited Error Recovery**
-   - Server exits on critical errors (bind failure, etc.)
-   - *Future:* Add automatic restart or error recovery
-
-5. **No Command History**
-   - Client doesn't maintain command history
-   - *Future:* Add readline support for history and autocomplete
-
-6. **No Session Persistence**
-   - Each connection is independent
-   - Working directory resets on reconnect
-   - *Future:* Add session management
-
-### Phase 1 Limitations (Inherited)
-
-All Phase 1 limitations still apply:
-- Maximum command length: 4095 characters
-- Maximum arguments: 63 per command
-- No background processes (`&` operator)
-- Limited built-in commands (only `echo`)
-
-### Testing Commands
-```bash
-# Memory leaks
-valgrind --leak-check=full ./server
-
-# File descriptors
-lsof -p $(pidof server)
-
-# Network connections
-netstat -tuln | grep 8080
-ss -tuln | grep 8080
-
-# Process tree
-pstree -p $(pidof server)
-```
-
-## Quick Command Reference
-
-```bash
-# Compilation
-make server          # Build server
-make client          # Build client
-make all            # Build everything
-make clean          # Remove generated files
-
-# Execution
-./server            # Start server
-./client            # Start client (after implementation)
-nc localhost 8080   # Test with netcat
-
-# Testing
-make test-server    # Run server tests
-lsof -i :8080      # Check port usage
-ps aux | grep server # Check server process
-
-# Debugging
-gdb ./server        # Debug server
-valgrind ./server   # Check memory leaks
-```
