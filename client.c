@@ -179,7 +179,7 @@ void run_client_loop(int socket_fd) {
             print_connection_lost_error();
             break;
         } else if (bytes_received == 0) {
-            // server closed connection unexpectedly
+            // server closed connection
             print_connection_lost_error();
             break;
         }
@@ -190,7 +190,6 @@ void run_client_loop(int socket_fd) {
         // display server response to user
         // output is displayed exactly as received (clean, no extra formatting)
         // this preserves all newlines, spacing, and formatting from the command output
-        // note: for commands with output redirection (>), output may be empty
         printf("%s", response);
 
         // handle large outputs that don't fit in one buffer
@@ -206,12 +205,19 @@ void run_client_loop(int socket_fd) {
                 print_connection_lost_error();
                 return;
             } else if (bytes_received == 0) {
-                // no more data to receive
-                break;
+                // server closed connection
+                print_connection_lost_error();
+                return;
             }
 
             response[bytes_received] = '\0';
             printf("%s", response);
+        }
+
+        // ensure output ends with newline for clean formatting
+        // only add newline if the response was non-empty and doesn't already end with one
+        if (bytes_received > 0 && response[bytes_received - 1] != '\n') {
+            printf("\n");
         }
     }
 }
