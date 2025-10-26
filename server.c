@@ -439,11 +439,21 @@ void handle_client(int client_fd) {
             }
 
             // send the captured output (or error message) back to client
-            ssize_t bytes_sent = send(client_fd, output, strlen(output), 0);
-            if (bytes_sent == -1) {
-                perror("Error: send failed");
-                free(output);
-                break;
+            // if output is empty (e.g., redirected to file), send newline so client knows command completed
+            if (strlen(output) == 0) {
+                ssize_t bytes_sent = send(client_fd, "\n", 1, 0);
+                if (bytes_sent == -1) {
+                    perror("Error: send failed");
+                    free(output);
+                    break;
+                }
+            } else {
+                ssize_t bytes_sent = send(client_fd, output, strlen(output), 0);
+                if (bytes_sent == -1) {
+                    perror("Error: send failed");
+                    free(output);
+                    break;
+                }
             }
 
             // free the dynamically allocated output string
