@@ -146,6 +146,219 @@ int accept_client_connection(int server_fd) {
     return client_fd;
 }
 
+// // command execution with output capture
+// // executes a shell command and captures all its output (stdout and stderr)
+// // integrates Phase 1 shell with Phase 2 networking
+// // create two pipes: one for stdout, one for stderr -- fork child process
+// // child --> redirect stdout/stderr to pipes
+// // parent --> read from pipes to capture all output, wait for child to finish
+// char* execute_command_with_capture(const char* command, int* success) {
+//     // create pipes for capturing stdout and stderr separately -- [0] = read end, [1] = write end
+//     int stdout_pipe[2]; 
+//     int stderr_pipe[2];
+
+//     // create stdout pipe
+//     if (pipe(stdout_pipe) == -1) {
+//         perror("Error: pipe creation failed for stdout");
+//         *success = 0;
+//         return NULL;
+//     }
+
+//     // create stderr pipe
+//     if (pipe(stderr_pipe) == -1) {
+//         perror("Error: pipe creation failed for stderr");
+//         close(stdout_pipe[0]);
+//         close(stdout_pipe[1]);
+//         *success = 0;
+//         return NULL;
+//     }
+
+//     // fork a child process to execute the command
+//     pid_t pid = fork();
+
+//     if (pid == -1) {
+//         // fork failed
+//         perror("Error -- fork failed");
+//         close(stdout_pipe[0]);
+//         close(stdout_pipe[1]);
+//         close(stderr_pipe[0]);
+//         close(stderr_pipe[1]);
+//         *success = 0;
+//         return NULL;
+//     }
+
+//     if (pid == 0) {
+//         // child process
+//         // execute the command with redirected output
+
+//         // close read ends of pipes -- child only writes to pipes
+//         close(stdout_pipe[0]);
+//         close(stderr_pipe[0]);
+
+//         // redirect stdout to the write end of stdout_pipe
+//         // anything printed to stdout goes into the pipe
+//         dup2(stdout_pipe[1], STDOUT_FILENO);
+
+//         // redirect stderr to the write end of stderr_pipe
+//         // anything printed to stderr goes into the pipe
+//         dup2(stderr_pipe[1], STDERR_FILENO);
+
+//         // Close the original write ends after duplication
+//         // file descriptors are now duplicated onto STDOUT/STDERR
+//         close(stdout_pipe[1]);
+//         close(stderr_pipe[1]);
+
+//         // make a copy of the command string
+//         char* cmd_copy = malloc(strlen(command) + 1);
+//         if (cmd_copy == NULL) {
+//             fprintf(stderr, "Error: Memory allocation failed\n");
+//             exit(EXIT_FAILURE);
+//         }
+//         strcpy(cmd_copy, command);
+
+//         // parse the command using Phase 1 parser
+//         // handles: simple commands, pipes, redirections, compound commands
+//         pipeline_t* pipeline = parse_pipeline(cmd_copy);
+//         free(cmd_copy);
+
+//         if (pipeline == NULL) {
+//             // Parsing failed - invalid command syntax
+//             fprintf(stderr, "Error -- Invalid command: %s\n", command);
+//             exit(EXIT_FAILURE);
+//         }
+
+//         // execute the parsed pipeline using Phase 1 features
+//         int status = execute_pipeline(pipeline);
+
+//         // clean up allocated memory
+//         free_pipeline(pipeline);
+
+//         // exit with the command's exit status
+//         // Exit code 0 -> success, != 0 -> error
+//         exit(status);
+
+//     } else {
+//         // parent
+//         // read the captured output from pipes
+
+//         // close write ends of pipes (parent only reads from pipes)
+//         close(stdout_pipe[1]);
+//         close(stderr_pipe[1]);
+
+//         // buffers for reading from pipes
+//         char stdout_buffer[BUFFER_SIZE];
+//         char stderr_buffer[BUFFER_SIZE];
+//         ssize_t stdout_bytes = 0;
+//         ssize_t stderr_bytes = 0;
+
+//         // allocate initial memory for combined output
+//         // dynamically grow this buffer as needed
+//         size_t total_size = BUFFER_SIZE * 2;
+//         char* output = malloc(total_size);
+//         if (output == NULL) {
+//             perror("Error: malloc failed for output");
+//             close(stdout_pipe[0]);
+//             close(stderr_pipe[0]);
+//             waitpid(pid, NULL, 0);
+//             *success = 0;
+//             return NULL;
+//         }
+//         output[0] = '\0';  // start with empty string
+//         size_t output_len = 0;
+
+//         // read all data from stdout pipe
+//         // loop continues until pipe is closed
+//         while ((stdout_bytes = read(stdout_pipe[0], stdout_buffer, BUFFER_SIZE - 1)) > 0) {
+//             stdout_buffer[stdout_bytes] = '\0';  // null-terminate the chunk
+
+//             // dynamically resize output buffer if needed
+//             // double the size when we run out of space
+//             while (output_len + stdout_bytes + 1 > total_size) {
+//                 total_size *= 2;
+//                 char* new_output = realloc(output, total_size);
+//                 if (new_output == NULL) {
+//                     perror("Error: realloc failed");
+//                     free(output);
+//                     close(stdout_pipe[0]);
+//                     close(stderr_pipe[0]);
+//                     waitpid(pid, NULL, 0);
+//                     *success = 0;
+//                     return NULL;
+//                 }
+//                 output = new_output;
+//             }
+
+//             // append this chunk to the output string
+//             strcat(output, stdout_buffer);
+//             output_len += stdout_bytes;
+//         }
+
+//         // read all data from stderr pipe
+//         // Same process as stdout - read until pipe closes
+//         while ((stderr_bytes = read(stderr_pipe[0], stderr_buffer, BUFFER_SIZE - 1)) > 0) {
+//             stderr_buffer[stderr_bytes] = '\0';
+
+//             // dynamically resize in case needed
+//             while (output_len + stderr_bytes + 1 > total_size) {
+//                 total_size *= 2;
+//                 char* new_output = realloc(output, total_size);
+//                 if (new_output == NULL) {
+//                     perror("Error: realloc failed");
+//                     free(output);
+//                     close(stdout_pipe[0]);
+//                     close(stderr_pipe[0]);
+//                     waitpid(pid, NULL, 0);
+//                     *success = 0;
+//                     return NULL;
+//                 }
+//                 output = new_output;
+//             }
+
+//             // append stderr to output (after stdout)
+//             strcat(output, stderr_buffer);
+//             output_len += stderr_bytes;
+//         }
+
+//         // close read ends of pipes
+//         close(stdout_pipe[0]);
+//         close(stderr_pipe[0]);
+
+//         // wait for child process to finish and get its exit status
+//         int status;
+//         waitpid(pid, &status, 0);
+
+//         // determine if command executed successfully based on exit status
+//         if (WIFEXITED(status)) {
+//             int exit_status = WEXITSTATUS(status);
+//             if (exit_status == 0) {
+//                 // command executed successfully
+//                 *success = 1;
+//             } else {
+//                 // command executed but returned error
+//                 // check if it's a "command not found" error by looking at output
+//                 if (strstr(output, "Command not found") != NULL ||
+//                     strstr(output, "not found") != NULL) {
+//                     *success = 0;  // command doesn't exist
+//                 } else {
+//                     *success = 1;  // command ran but had error output
+//                 }
+//             }
+//         } else {
+//             // child process did not exit normally
+//             *success = 0;
+//         }
+
+//         // return the captured output
+//         // caller responsible for freeing this memory
+//         return output;
+//     }
+
+//     // should never reach here
+//     return NULL;
+// }
+
+//
+
 // command execution with output capture
 // executes a shell command and captures all its output (stdout and stderr)
 // integrates Phase 1 shell with Phase 2 networking
@@ -156,14 +369,14 @@ char* execute_command_with_capture(const char* command, int* success) {
     // create pipes for capturing stdout and stderr separately -- [0] = read end, [1] = write end
     int stdout_pipe[2]; 
     int stderr_pipe[2];
-
+    
     // create stdout pipe
     if (pipe(stdout_pipe) == -1) {
         perror("Error: pipe creation failed for stdout");
         *success = 0;
         return NULL;
     }
-
+    
     // create stderr pipe
     if (pipe(stderr_pipe) == -1) {
         perror("Error: pipe creation failed for stderr");
@@ -172,10 +385,9 @@ char* execute_command_with_capture(const char* command, int* success) {
         *success = 0;
         return NULL;
     }
-
+    
     // fork a child process to execute the command
     pid_t pid = fork();
-
     if (pid == -1) {
         // fork failed
         perror("Error -- fork failed");
@@ -186,28 +398,28 @@ char* execute_command_with_capture(const char* command, int* success) {
         *success = 0;
         return NULL;
     }
-
+    
     if (pid == 0) {
         // child process
         // execute the command with redirected output
-
+        
         // close read ends of pipes -- child only writes to pipes
         close(stdout_pipe[0]);
         close(stderr_pipe[0]);
-
+        
         // redirect stdout to the write end of stdout_pipe
         // anything printed to stdout goes into the pipe
         dup2(stdout_pipe[1], STDOUT_FILENO);
-
+        
         // redirect stderr to the write end of stderr_pipe
         // anything printed to stderr goes into the pipe
         dup2(stderr_pipe[1], STDERR_FILENO);
-
+        
         // Close the original write ends after duplication
         // file descriptors are now duplicated onto STDOUT/STDERR
         close(stdout_pipe[1]);
         close(stderr_pipe[1]);
-
+        
         // make a copy of the command string
         char* cmd_copy = malloc(strlen(command) + 1);
         if (cmd_copy == NULL) {
@@ -215,42 +427,41 @@ char* execute_command_with_capture(const char* command, int* success) {
             exit(EXIT_FAILURE);
         }
         strcpy(cmd_copy, command);
-
+        
         // parse the command using Phase 1 parser
         // handles: simple commands, pipes, redirections, compound commands
         pipeline_t* pipeline = parse_pipeline(cmd_copy);
         free(cmd_copy);
-
+        
         if (pipeline == NULL) {
             // Parsing failed - invalid command syntax
             fprintf(stderr, "Error -- Invalid command: %s\n", command);
             exit(EXIT_FAILURE);
         }
-
+        
         // execute the parsed pipeline using Phase 1 features
         int status = execute_pipeline(pipeline);
-
+        
         // clean up allocated memory
         free_pipeline(pipeline);
-
+        
         // exit with the command's exit status
         // Exit code 0 -> success, != 0 -> error
         exit(status);
-
     } else {
         // parent
         // read the captured output from pipes
-
+        
         // close write ends of pipes (parent only reads from pipes)
         close(stdout_pipe[1]);
         close(stderr_pipe[1]);
-
+        
         // buffers for reading from pipes
         char stdout_buffer[BUFFER_SIZE];
         char stderr_buffer[BUFFER_SIZE];
         ssize_t stdout_bytes = 0;
         ssize_t stderr_bytes = 0;
-
+        
         // allocate initial memory for combined output
         // dynamically grow this buffer as needed
         size_t total_size = BUFFER_SIZE * 2;
@@ -265,14 +476,12 @@ char* execute_command_with_capture(const char* command, int* success) {
         }
         output[0] = '\0';  // start with empty string
         size_t output_len = 0;
-
+        
         // read all data from stdout pipe
         // loop continues until pipe is closed
         while ((stdout_bytes = read(stdout_pipe[0], stdout_buffer, BUFFER_SIZE - 1)) > 0) {
-            stdout_buffer[stdout_bytes] = '\0';  // null-terminate the chunk
-
             // dynamically resize output buffer if needed
-            // double the size when we run out of space
+            // ensure we have space for the new data plus null terminator
             while (output_len + stdout_bytes + 1 > total_size) {
                 total_size *= 2;
                 char* new_output = realloc(output, total_size);
@@ -287,18 +496,18 @@ char* execute_command_with_capture(const char* command, int* success) {
                 }
                 output = new_output;
             }
-
-            // append this chunk to the output string
-            strcat(output, stdout_buffer);
+            
+            // FIXED: use memcpy instead of strcat for better safety
+            // copy the new data directly into the buffer at the correct position
+            memcpy(output + output_len, stdout_buffer, stdout_bytes);
             output_len += stdout_bytes;
+            output[output_len] = '\0';  // null-terminate after adding data
         }
-
+        
         // read all data from stderr pipe
         // Same process as stdout - read until pipe closes
         while ((stderr_bytes = read(stderr_pipe[0], stderr_buffer, BUFFER_SIZE - 1)) > 0) {
-            stderr_buffer[stderr_bytes] = '\0';
-
-            // dynamically resize in case needed
+            // dynamically resize if needed
             while (output_len + stderr_bytes + 1 > total_size) {
                 total_size *= 2;
                 char* new_output = realloc(output, total_size);
@@ -313,50 +522,148 @@ char* execute_command_with_capture(const char* command, int* success) {
                 }
                 output = new_output;
             }
-
+            
+            // FIXED: use memcpy instead of strcat
             // append stderr to output (after stdout)
-            strcat(output, stderr_buffer);
+            memcpy(output + output_len, stderr_buffer, stderr_bytes);
             output_len += stderr_bytes;
+            output[output_len] = '\0';  // null-terminate
         }
-
+        
         // close read ends of pipes
         close(stdout_pipe[0]);
         close(stderr_pipe[0]);
-
+        
         // wait for child process to finish and get its exit status
         int status;
         waitpid(pid, &status, 0);
-
-        // determine if command executed successfully based on exit status
+        
+        // FIXED: determine success based solely on exit status
+        // don't rely on fragile string matching in output
         if (WIFEXITED(status)) {
             int exit_status = WEXITSTATUS(status);
-            if (exit_status == 0) {
-                // command executed successfully
-                *success = 1;
-            } else {
-                // command executed but returned error
-                // check if it's a "command not found" error by looking at output
-                if (strstr(output, "Command not found") != NULL ||
-                    strstr(output, "not found") != NULL) {
-                    *success = 0;  // command doesn't exist
-                } else {
-                    *success = 1;  // command ran but had error output
-                }
-            }
+            // command succeeded if exit status is 0
+            *success = (exit_status == 0) ? 1 : 0;
         } else {
-            // child process did not exit normally
+            // child process did not exit normally (e.g., killed by signal)
             *success = 0;
         }
-
+        
         // return the captured output
         // caller responsible for freeing this memory
         return output;
     }
-
+    
     // should never reach here
     return NULL;
 }
 
+//
+
+
+// // client command handling loop
+// // receives commands from client via socket, executes each command, sends the captured output back to client, displays messages
+// // continue until client disconnects or sends "exit" command
+// void handle_client(int client_fd) {
+//     char buffer[BUFFER_SIZE];
+//     ssize_t bytes_received;
+
+//     // continues until client disconnects or sends "exit"
+//     while (1) {
+//         // clear buffer before receiving new command
+//         memset(buffer, 0, BUFFER_SIZE);
+
+//         // receive command from client
+//         // recv() blocks until data is available or connection closes
+//         bytes_received = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
+
+//         // check for errors or connection closed
+//         if (bytes_received <= 0) {
+//             if (bytes_received == 0) {
+//                 // client closed connection gracefully
+//                 printf("[INFO] Client disconnected.\n");
+//             } else {
+//                 // recv() error
+//                 perror("Error: recv failed");
+//             }
+//             break;
+//         }
+
+//         // null-terminate the received data to make it a valid C string
+//         buffer[bytes_received] = '\0';
+
+//         // remove trailing newline if present
+//         size_t len = strlen(buffer);
+//         if (len > 0 && buffer[len - 1] == '\n') {
+//             buffer[len - 1] = '\0';
+//         }
+
+//         // display received command on server console with formatting
+//         print_received(buffer);
+
+//         // check for exit command
+//         if (strcmp(buffer, "exit") == 0) {
+//             printf("[INFO] Client requested exit.\n");
+//             // send empty response to acknowledge exit
+//             const char* exit_msg = "";
+//             send(client_fd, exit_msg, strlen(exit_msg), 0);
+//             break;  // exit the command loop
+//         }
+
+//         // display executing message on server console
+//         print_executing(buffer);
+
+//         // execute the command and capture its output
+//         int success = 0;
+//         char* output = execute_command_with_capture(buffer, &success);
+
+//         if (output != NULL) {
+//             // command execution completed (successfully or with error)
+
+//             if (success) {
+//                 // command executed successfully
+//                 print_output("Sending output to client:");
+
+//                 // display the actual output on server console
+//                 printf("%s", output);
+//                 // add newline if output doesn't end with one
+//                 if (strlen(output) > 0 && output[strlen(output) - 1] != '\n') {
+//                     printf("\n");
+//                 }
+//             } else {
+//                 // command not found or execution failed
+//                 // display error message on server console with formatting
+//                 printf("[ERROR] Command not found: \"%s\"\n", buffer);
+//                 print_output("Sending error message to client:");
+//                 printf("%s", output);
+//                 if (strlen(output) > 0 && output[strlen(output) - 1] != '\n') {
+//                     printf("\n");
+//                 }
+//             }
+
+//             // send the captured output (or error message) back to client
+//             ssize_t bytes_sent = send(client_fd, output, strlen(output), 0);
+//             if (bytes_sent == -1) {
+//                 perror("Error: send failed");
+//                 free(output);
+//                 break;
+//             }
+
+//             // free the dynamically allocated output string
+//             free(output);
+
+//         } else {
+//             // memory allocation failed or other critical error
+//             const char* error_msg = "Error: Server failed to execute command\n";
+//             print_output("Sending error message to client:");
+//             printf("%s", error_msg);
+//             send(client_fd, error_msg, strlen(error_msg), 0);
+//         }
+//     }
+// }
+
+
+//
 
 // client command handling loop
 // receives commands from client via socket, executes each command, sends the captured output back to client, displays messages
@@ -364,16 +671,16 @@ char* execute_command_with_capture(const char* command, int* success) {
 void handle_client(int client_fd) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_received;
-
+    
     // continues until client disconnects or sends "exit"
     while (1) {
         // clear buffer before receiving new command
         memset(buffer, 0, BUFFER_SIZE);
-
+        
         // receive command from client
         // recv() blocks until data is available or connection closes
         bytes_received = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
-
+        
         // check for errors or connection closed
         if (bytes_received <= 0) {
             if (bytes_received == 0) {
@@ -385,19 +692,19 @@ void handle_client(int client_fd) {
             }
             break;
         }
-
+        
         // null-terminate the received data to make it a valid C string
         buffer[bytes_received] = '\0';
-
+        
         // remove trailing newline if present
         size_t len = strlen(buffer);
         if (len > 0 && buffer[len - 1] == '\n') {
             buffer[len - 1] = '\0';
         }
-
+        
         // display received command on server console with formatting
         print_received(buffer);
-
+        
         // check for exit command
         if (strcmp(buffer, "exit") == 0) {
             printf("[INFO] Client requested exit.\n");
@@ -406,21 +713,19 @@ void handle_client(int client_fd) {
             send(client_fd, exit_msg, strlen(exit_msg), 0);
             break;  // exit the command loop
         }
-
+        
         // display executing message on server console
         print_executing(buffer);
-
+        
         // execute the command and capture its output
         int success = 0;
         char* output = execute_command_with_capture(buffer, &success);
-
+        
         if (output != NULL) {
             // command execution completed (successfully or with error)
-
             if (success) {
-                // command executed successfully
+                // command executed successfully (exit code 0)
                 print_output("Sending output to client:");
-
                 // display the actual output on server console
                 printf("%s", output);
                 // add newline if output doesn't end with one
@@ -428,16 +733,36 @@ void handle_client(int client_fd) {
                     printf("\n");
                 }
             } else {
-                // command not found or execution failed
-                // display error message on server console with formatting
-                printf("[ERROR] Command not found: \"%s\"\n", buffer);
-                print_output("Sending error message to client:");
-                printf("%s", output);
-                if (strlen(output) > 0 && output[strlen(output) - 1] != '\n') {
-                    printf("\n");
+                // command failed (non-zero exit code or didn't execute)
+                // check if it's a "command not found" error by examining the output
+                if (strstr(output, "Command not found") != NULL) {
+                    // display error in the format: [ERROR] Command not found: "commandname"
+                    printf("[ERROR] Command not found: \"%s\"\n", buffer);
+                } else {
+                    // other types of errors (permission denied, file not found, etc.)
+                    printf("[ERROR] Command execution failed\n");
+                }
+                
+                // display that we're sending the error message
+                // print_output("Sending error message to client:");
+                printf("[OUTPUT] Sending error message to client: \"");
+                
+                // display the actual error output on server console
+                // printf("%s", output);
+                // if (strlen(output) > 0 && output[strlen(output) - 1] != '\n') {
+                //     printf("\n");
+                // }
+
+                // display the actual error output (trim newline if present for clean formatting)
+                if (strlen(output) > 0 && output[strlen(output) - 1] == '\n') {
+                    // output has newline - print without it, then add closing quote and newline
+                    printf("%.*s\"\n", (int)(strlen(output) - 1), output);
+                } else {
+                    // output has no newline - print it, then add closing quote and newline
+                    printf("%s\"\n", output);
                 }
             }
-
+            
             // send the captured output (or error message) back to client
             ssize_t bytes_sent = send(client_fd, output, strlen(output), 0);
             if (bytes_sent == -1) {
@@ -445,19 +770,26 @@ void handle_client(int client_fd) {
                 free(output);
                 break;
             }
-
+            
             // free the dynamically allocated output string
             free(output);
-
         } else {
             // memory allocation failed or other critical error
             const char* error_msg = "Error: Server failed to execute command\n";
+            printf("[ERROR] Server failed to execute command\n");
             print_output("Sending error message to client:");
             printf("%s", error_msg);
             send(client_fd, error_msg, strlen(error_msg), 0);
         }
     }
 }
+
+
+//
+
+
+
+
 
 // server console output formatting functions
 

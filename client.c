@@ -18,6 +18,7 @@
 
 // system headers
 #include <errno.h>       // errno for error handling
+#include <fcntl.h>
 
 
 // CLIENT configuration constants (must match server protocol)
@@ -118,6 +119,112 @@ int create_and_connect_socket(const char* server_ip, int port) {
 }
 
 
+// // main client loop
+// // presents shell prompt, reads user commands, sends to server, displays output
+// // continues until user types "exit" or connection is lost
+// void run_client_loop(int socket_fd) {
+//     char command[BUFFER_SIZE];    // buffer for user input
+//     char response[BUFFER_SIZE];   // buffer for server response
+//     ssize_t bytes_received;
+
+//     // main command loop - runs indefinitely until exit or disconnect
+//     while (1) {
+//         // display shell prompt (exactly like Phase 1 - clean, no extra text)
+//         printf("$ ");
+//         fflush(stdout);  // ensure prompt is displayed immediately
+
+//         // read command from user input
+//         // fgets reads a line including the newline character
+//         if (fgets(command, sizeof(command), stdin) == NULL) {
+//             // EOF encountered (Ctrl+D) or read error
+//             // send exit command to server and disconnect gracefully
+//             const char* exit_cmd = "exit\n";
+//             send(socket_fd, exit_cmd, strlen(exit_cmd), 0);
+//             break;
+//         }
+
+//         // check if command is empty or only whitespace
+//         // don't send empty commands to server - just show prompt again
+//         if (is_empty_or_whitespace(command)) {
+//             continue;  // skip to next iteration, display prompt again
+//         }
+
+//         // send command to server
+//         // command already includes newline from fgets (per protocol)
+//         ssize_t bytes_sent = send(socket_fd, command, strlen(command), 0);
+//         if (bytes_sent == -1) {
+//             // send failed - connection might be lost
+//             perror("Error: Failed to send command to server");
+//             print_connection_lost_error();
+//             break;
+//         }
+
+//         // check if user wants to exit
+//         // compare first 4 characters to handle "exit" or "exit\n"
+//         if (strncmp(command, "exit", 4) == 0) {
+//             // user requested exit - receive acknowledgment and break
+//             // server sends empty response for exit command
+//             recv(socket_fd, response, sizeof(response) - 1, 0);
+//             break;  // exit the loop, closing connection
+//         }
+
+//         // receive response from server
+//         // server sends command output (may be empty, single line, or multiple lines)
+//         memset(response, 0, sizeof(response));  // clear buffer
+//         bytes_received = recv(socket_fd, response, sizeof(response) - 1, 0);
+
+//         // check for errors or connection closed
+//         if (bytes_received < 0) {
+//             // recv error - network issue
+//             perror("Error: Failed to receive response from server");
+//             print_connection_lost_error();
+//             break;
+//         } else if (bytes_received == 0) {
+//             // server closed connection
+//             print_connection_lost_error();
+//             break;
+//         }
+
+//         // null-terminate the received data
+//         response[bytes_received] = '\0';
+
+//         // display server response to user
+//         // output is displayed exactly as received (clean, no extra formatting)
+//         // this preserves all newlines, spacing, and formatting from the command output
+//         printf("%s", response);
+
+//         // handle large outputs that don't fit in one buffer
+//         // keep receiving until we get a smaller chunk (indicating end of output)
+//         // this handles commands with lots of output like "ls -la" in large directories
+//         while (bytes_received == BUFFER_SIZE - 1) {
+//             // buffer was completely filled - there might be more data
+//             memset(response, 0, sizeof(response));
+//             bytes_received = recv(socket_fd, response, sizeof(response) - 1, 0);
+
+//             if (bytes_received < 0) {
+//                 perror("Error: Failed to receive response from server");
+//                 print_connection_lost_error();
+//                 return;
+//             } else if (bytes_received == 0) {
+//                 // server closed connection
+//                 print_connection_lost_error();
+//                 return;
+//             }
+
+//             response[bytes_received] = '\0';
+//             printf("%s", response);
+//         }
+
+//         // ensure output ends with newline for clean formatting
+//         // only add newline if the response was non-empty and doesn't already end with one
+//         if (bytes_received > 0 && response[bytes_received - 1] != '\n') {
+//             printf("\n");
+//         }
+//     }
+// }
+
+//
+
 // main client loop
 // presents shell prompt, reads user commands, sends to server, displays output
 // continues until user types "exit" or connection is lost
@@ -192,27 +299,46 @@ void run_client_loop(int socket_fd) {
         // this preserves all newlines, spacing, and formatting from the command output
         printf("%s", response);
 
-        // handle large outputs that don't fit in one buffer
-        // keep receiving until we get a smaller chunk (indicating end of output)
-        // this handles commands with lots of output like "ls -la" in large directories
-        while (bytes_received == BUFFER_SIZE - 1) {
-            // buffer was completely filled - there might be more data
+        // handle large outputs - keep receiving until no more data is immediately available
+        // temporarily set socket to non-blocking mode
+        int flags = fcntl(socket_fd, F_GETFL, 0);
+        fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
+        
+        while (1) {
+            // clear buffer for next chunk
             memset(response, 0, sizeof(response));
-            bytes_received = recv(socket_fd, response, sizeof(response) - 1, 0);
-
-            if (bytes_received < 0) {
-                perror("Error: Failed to receive response from server");
+            
+            // try to receive more data (non-blocking because we set O_NONBLOCK)
+            ssize_t additional_bytes = recv(socket_fd, response, sizeof(response) - 1, 0);
+            
+            if (additional_bytes > 0) {
+                // more data available - display it
+                response[additional_bytes] = '\0';
+                printf("%s", response);
+                
+                // update bytes_received to track the last chunk
+                bytes_received = additional_bytes;
+            } else if (additional_bytes == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                // no more data available right now - this is normal, we're done receiving
+                break;
+            } else if (additional_bytes == 0) {
+                // connection closed by server
+                // restore blocking mode before returning
+                fcntl(socket_fd, F_SETFL, flags);
                 print_connection_lost_error();
                 return;
-            } else if (bytes_received == 0) {
-                // server closed connection
+            } else {
+                // real error occurred
+                perror("Error: Failed to receive response from server");
+                // restore blocking mode before returning
+                fcntl(socket_fd, F_SETFL, flags);
                 print_connection_lost_error();
                 return;
             }
-
-            response[bytes_received] = '\0';
-            printf("%s", response);
         }
+        
+        // restore socket to blocking mode for next command
+        fcntl(socket_fd, F_SETFL, flags);
 
         // ensure output ends with newline for clean formatting
         // only add newline if the response was non-empty and doesn't already end with one
@@ -221,6 +347,9 @@ void run_client_loop(int socket_fd) {
         }
     }
 }
+
+
+//
 
 
 // utility function to check if string is empty or contains only whitespace

@@ -1413,8 +1413,8 @@ int execute_simple_command(command_t* cmd) {
         // attempt to replace process image with the requested program
         if (execvp(cmd->argv[0], cmd->argv) == -1) {
             // provide user-friendly messages for not found and permission errors
-            if (errno == ENOENT) fprintf(stderr, "Error: Command not found: '%s'\n", cmd->argv[0]);
-            else if (errno == EACCES) fprintf(stderr, "Error: Permission denied: '%s'\n", cmd->argv[0]);
+            if (errno == ENOENT) fprintf(stderr, "Command not found: %s\n", cmd->argv[0]);
+            else if (errno == EACCES) fprintf(stderr, "Permission denied: %s\n", cmd->argv[0]);
             else handle_error(ERROR_EXEC_FAILED, cmd->argv[0]);
             // terminate child with failure code
             exit(EXIT_FAILURE);
@@ -1819,8 +1819,8 @@ int execute_pipeline(pipeline_t* pipeline) {
             // execute the actual command for this pipeline stage
             if (execvp(pipeline->commands[i]->argv[0], pipeline->commands[i]->argv) == -1) {
                 // provide nicer messages for common failures
-                if (errno == ENOENT) fprintf(stderr, "Error: Command not found: '%s'\n", pipeline->commands[i]->argv[0]);
-                else if (errno == EACCES) fprintf(stderr, "Error: Permission denied: '%s'\n", pipeline->commands[i]->argv[0]);
+                if (errno == ENOENT) fprintf(stderr, "Command not found: %s\n", pipeline->commands[i]->argv[0]);
+                else if (errno == EACCES) fprintf(stderr, "Permission denied: %s\n", pipeline->commands[i]->argv[0]);
                 else handle_error(ERROR_EXEC_FAILED, pipeline->commands[i]->argv[0]);
                 // terminate child on failure to exec
                 exit(EXIT_FAILURE);
