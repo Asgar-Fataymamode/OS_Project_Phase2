@@ -727,10 +727,15 @@ void handle_client(int client_fd) {
                 // command executed successfully (exit code 0)
                 print_output("Sending output to client:");
                 // display the actual output on server console
-                printf("%s", output);
-                // add newline if output doesn't end with one
-                if (strlen(output) > 0 && output[strlen(output) - 1] != '\n') {
-                    printf("\n");
+                if (strlen(output) > 0) {
+                    printf("%s", output);
+                    // add newline if output doesn't end with one
+                    if (output[strlen(output) - 1] != '\n') {
+                        printf("\n");
+                    }
+                } else {
+                    // command succeeded but produced no output (e.g., redirected to file)
+                    printf("(empty output)\n");
                 }
             } else {
                 // command failed (non-zero exit code or didn't execute)
@@ -743,16 +748,9 @@ void handle_client(int client_fd) {
                     printf("[ERROR] Command execution failed\n");
                 }
                 
-                // display that we're sending the error message
-                // print_output("Sending error message to client:");
+                // display that we're sending the error message with opening quote
                 printf("[OUTPUT] Sending error message to client: \"");
                 
-                // display the actual error output on server console
-                // printf("%s", output);
-                // if (strlen(output) > 0 && output[strlen(output) - 1] != '\n') {
-                //     printf("\n");
-                // }
-
                 // display the actual error output (trim newline if present for clean formatting)
                 if (strlen(output) > 0 && output[strlen(output) - 1] == '\n') {
                     // output has newline - print without it, then add closing quote and newline
@@ -764,11 +762,31 @@ void handle_client(int client_fd) {
             }
             
             // send the captured output (or error message) back to client
-            ssize_t bytes_sent = send(client_fd, output, strlen(output), 0);
-            if (bytes_sent == -1) {
-                perror("Error: send failed");
-                free(output);
-                break;
+            // ssize_t bytes_sent = send(client_fd, output, strlen(output), 0);
+            // if (bytes_sent == -1) {
+            //     perror("Error: send failed");
+            //     free(output);
+            //     break;
+            // }
+
+            // send the captured output (or error message) back to client
+            // if output is empty, send at least a newline so client doesn't hang
+            if (strlen(output) == 0) {
+                // send a single newline for empty output
+                ssize_t bytes_sent = send(client_fd, "\n", 1, 0);
+                if (bytes_sent == -1) {
+                    perror("Error: send failed");
+                    free(output);
+                    break;
+                }
+            } else {
+                // send the actual output
+                ssize_t bytes_sent = send(client_fd, output, strlen(output), 0);
+                if (bytes_sent == -1) {
+                    perror("Error: send failed");
+                    free(output);
+                    break;
+                }
             }
             
             // free the dynamically allocated output string
@@ -783,6 +801,8 @@ void handle_client(int client_fd) {
         }
     }
 }
+
+
 
 
 //
